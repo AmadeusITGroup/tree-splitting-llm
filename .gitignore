@@ -175,3 +175,6 @@ package/_version.py
 
 # to place JSON to test
 data/
+
+# ruff linter
+.ruff_cache
