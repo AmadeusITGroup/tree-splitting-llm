@@ -1,5 +1,5 @@
 import json
-import tree_splitting_llm.utils as ut
+import tree_splitter_llm.utils as ut
 from anytree import RenderTree
 
 swagger_filename = "./data/airline_routes.json"
