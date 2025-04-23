@@ -6,30 +6,25 @@ import json
 
 load_dotenv()
 
-MODEL = os.getenv("MODEL")
+MODEL = os.getenv("MODEL", "gpt-4-32k-0613")
 
 enc = tiktoken.encoding_for_model(MODEL)
 
-class MyBaseNodeClass(object):  # Just an example of a base class
-    def __init__(self, token_length, swagger_child, needs_modification = None, llm_summary = None, grouped_children_keys = None, original_swagger = None, modified_swagger=None, parent_list = None):
 
+class MyBaseNodeClass(object):  # Just an example of a base class
+    def __init__(
+        self,
+        token_length,
+        swagger_child,
+        grouped_children_keys=None,
+        original_swagger=None,
+        parent_list=None,
+    ):
         # Number of tokens in the node
         self.token_length = token_length
         # Swagger of the node child (if any)
         self.swagger_child = swagger_child
 
-        # List of modifications done in the node / group of nodes
-        if llm_summary is None:
-            self.llm_summary = []
-        else:
-            self.llm_summary = llm_summary
-
-        # Bool if the node needs modification / group of nodes
-        if needs_modification is None:
-            self.needs_modification = []
-        else:
-            self.needs_modification = needs_modification
-        
         # List of keys of the children that are grouped
         if grouped_children_keys is None:
             self.grouped_children_keys = []
@@ -42,12 +37,6 @@ class MyBaseNodeClass(object):  # Just an example of a base class
         else:
             self.original_swagger = original_swagger
 
-        # List of modified swagger of the node / group of nodes
-        if modified_swagger is None:
-            self.modified_swagger = []
-        else:
-            self.modified_swagger = modified_swagger
-
         if parent_list is None:
             self.parent_list = []
         else:
@@ -55,8 +44,24 @@ class MyBaseNodeClass(object):  # Just an example of a base class
 
 
 class LLmNodeClass(MyBaseNodeClass, at.AnyNode):  # Add Node feature
-    def __init__(self, name, token_length, swagger_child, parent=None, children=None, needs_modification = None, llm_summary = None, grouped_children_keys=None, original_swagger=None, modified_swagger=None, parent_list=None):
-        super(LLmNodeClass, self).__init__(token_length, swagger_child, needs_modification, llm_summary, grouped_children_keys, original_swagger, modified_swagger, parent_list)
+    def __init__(
+        self,
+        name,
+        token_length,
+        swagger_child,
+        parent=None,
+        children=None,
+        grouped_children_keys=None,
+        original_swagger=None,
+        parent_list=None,
+    ):
+        super(LLmNodeClass, self).__init__(
+            token_length,
+            swagger_child,
+            grouped_children_keys,
+            original_swagger,
+            parent_list,
+        )
 
         # Basic tree structure
         self.name = name
@@ -64,9 +69,11 @@ class LLmNodeClass(MyBaseNodeClass, at.AnyNode):  # Add Node feature
         if children:
             self.children = children
 
+
 def get_token_length(input: dict) -> int:
     encoded_info = enc.encode(json.dumps(input))
     return len(encoded_info)
+
 
 def get_token_length_string(input: str) -> int:
     encoded_info = enc.encode(input)
@@ -76,10 +83,16 @@ def get_token_length_string(input: str) -> int:
 # Aux function to get the nodes from the parent node
 def get_nodes_from_parent(parent_node, key, value, parent_list) -> None:
     tokens = get_token_length(value)
-    new_parent = LLmNodeClass(name = key, token_length=tokens, swagger_child=value, parent = parent_node, parent_list = parent_list)
+    new_parent = LLmNodeClass(
+        name=key,
+        token_length=tokens,
+        swagger_child=value,
+        parent=parent_node,
+        parent_list=parent_list,
+    )
 
     if isinstance(value, dict):
-        for k,v in value.items():
+        for k, v in value.items():
             if not parent_list:
                 current_parent = [key]
             else:
@@ -93,15 +106,19 @@ def get_nodes_from_parent(parent_node, key, value, parent_list) -> None:
 
 # Entry point to build the tree. It will create the root node and then call the recursive function to create the rest of the tree
 def build_tree(swagger: dict) -> LLmNodeClass:
-    root_node = LLmNodeClass(name = "root", token_length = get_token_length(swagger), swagger_child=swagger)
+    root_node = LLmNodeClass(
+        name="root", token_length=get_token_length(swagger), swagger_child=swagger
+    )
 
-    for k,v in swagger.items():
+    for k, v in swagger.items():
         get_nodes_from_parent(root_node, k, v, None)
-        
+
     return root_node
 
 
-def grouping_nodes(node: LLmNodeClass, max_tokens: int, past_summaries: str, parent_keys: list) -> None:
+def grouping_nodes(
+    node: LLmNodeClass, max_tokens: int, past_summaries: str, parent_keys: list
+) -> None:
     """
     Logic to group child nodes.
 
@@ -127,45 +144,44 @@ def grouping_nodes(node: LLmNodeClass, max_tokens: int, past_summaries: str, par
     """
     sum_token_children = 0
     grouped_nodes = []
-    #print(f"Here are the last summarizations: {summarizations}")
+    # print(f"Here are the last summarizations: {summarizations}")
     for child in node.children:
-
         tmp_sum_token = sum_token_children + child.token_length
         # print(f"Processing child {child.name} with tokens={child.token_length}")
         # Sum up nodes if it is less than max_tokens
         if tmp_sum_token <= max_tokens:
-            #print(f"Children: {child.name} with token length: {child.token_length} appended it")
+            # print(f"Children: {child.name} with token length: {child.token_length} appended it")
             sum_token_children += child.token_length
             grouped_nodes.append(child)
         # if child token length is greater than max_tokens, then go deeper
         elif child.token_length > max_tokens:
-            #print(f"Children: {child.name} with token length: {child.token_length} is big")
+            # print(f"Children: {child.name} with token length: {child.token_length} is big")
             # Need to flush here to avoid jumps
             if sum_token_children > 0:
-                #print("Flushing first")
-                #past_summaries = get_summary(grouped_nodes, parent_keys, past_summaries)
+                # print("Flushing first")
+                # past_summaries = get_summary(grouped_nodes, parent_keys, past_summaries)
                 node.grouped_children_keys.append(grouped_nodes)
                 sum_token_children = 0
                 grouped_nodes = []
-                
+
             if child.is_leaf:
                 print(f"Panic {child.name} is a leaf node exceeding max_tokens")
             else:
-                #print(f"Recursive call for children {child.name}")
+                # print(f"Recursive call for children {child.name}")
                 grouping_nodes(child, max_tokens, past_summaries, parent_keys)
         # otherwise, flush the grouped nodes and start again
         else:
-            #print("Flushing since sum_token it is greater than max_tokens")
-            #past_summaries = get_summary(grouped_nodes, parent_keys, past_summaries)
+            # print("Flushing since sum_token it is greater than max_tokens")
+            # past_summaries = get_summary(grouped_nodes, parent_keys, past_summaries)
             node.grouped_children_keys.append(grouped_nodes)
             sum_token_children = child.token_length
             grouped_nodes = [child]
-            
+
     if sum_token_children > 0:
-            #print("Flushing without reaching sum token limit")
-            #past_summaries = get_summary(grouped_nodes, parent_keys, past_summaries)
-            node.grouped_children_keys.append(grouped_nodes)
-            sum_token_children = 0
-            grouped_nodes = []
-    
+        # print("Flushing without reaching sum token limit")
+        # past_summaries = get_summary(grouped_nodes, parent_keys, past_summaries)
+        node.grouped_children_keys.append(grouped_nodes)
+        sum_token_children = 0
+        grouped_nodes = []
+
     return None
