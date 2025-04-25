@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+import sys
 import anytree as at
 import os
 import tiktoken
@@ -6,7 +7,7 @@ import json
 
 load_dotenv()
 
-MODEL = os.getenv("MODEL", "gpt-4-32k-0613")
+MODEL = os.getenv("MODEL", "gpt-4")
 
 enc = tiktoken.encoding_for_model(MODEL)
 
@@ -116,70 +117,59 @@ def build_tree(swagger: dict) -> LLmNodeClass:
     return root_node
 
 
-def grouping_nodes(
-    node: LLmNodeClass, max_tokens: int, past_summaries: str, parent_keys: list
-) -> None:
+def grouping_nodes(node: LLmNodeClass, max_tokens: int) -> None:
     """
     Logic to group child nodes.
 
     Inputs:
     - node: the parent node
-    - max_tokens: the maximum tokens allowed to group nodes
-    - user_query: the user query
-    - past_output: the previous model output
-    - summarizations: the summarization of the previous model calls.
+    - max_tokens: the maximum number of tokens allowed in the node groups
 
-    Algorithm is as follows:
+    Algorithm is:
 
     1. Initialize the sum of tokens as 0 and the group nodes as an empty list
     2. For each child in the parent node: do a temp sum of tokens with the child token length
     3. If the tmp sum is less than the max tokens, then append the child to the group nodes and update the sum of tokens. And move to the next child.
     4. Elif the child token length is greater than the max tokens (heavy child), then
-         a) Call the model for the group nodes already scanned (to avoid jumps)
+         a) Save the group nodes that already scanned (to avoid jumps)
          b) if the heavy child is a leaf node, panic (leaf node tokens > max tokens) --> need to increase the max token number
          c) else, recursively call the function for the heavy child
     5. If the tmp sum is greater than the max tokens (but with NO heavy child), then flush the group nodes and initialize the sum of tokens with current child token length and the group nodes with current child
     6. Finally, it could be that the loop over child nodes never reaches the max tokens, so we need to flush the group nodes at the end of the loop.
 
     """
+
     sum_token_children = 0
     grouped_nodes = []
-    # print(f"Here are the last summarizations: {summarizations}")
     for child in node.children:
         tmp_sum_token = sum_token_children + child.token_length
-        # print(f"Processing child {child.name} with tokens={child.token_length}")
         # Sum up nodes if it is less than max_tokens
         if tmp_sum_token <= max_tokens:
-            # print(f"Children: {child.name} with token length: {child.token_length} appended it")
             sum_token_children += child.token_length
             grouped_nodes.append(child)
         # if child token length is greater than max_tokens, then go deeper
         elif child.token_length > max_tokens:
-            # print(f"Children: {child.name} with token length: {child.token_length} is big")
             # Need to flush here to avoid jumps
             if sum_token_children > 0:
                 # print("Flushing first")
-                # past_summaries = get_summary(grouped_nodes, parent_keys, past_summaries)
                 node.grouped_children_keys.append(grouped_nodes)
                 sum_token_children = 0
                 grouped_nodes = []
 
             if child.is_leaf:
-                print(f"Panic {child.name} is a leaf node exceeding max_tokens")
+                sys.exit(
+                    f"Panic! Leaf node = '{child.name}' is exceeding max_tokens = {max_tokens}"
+                )
             else:
-                # print(f"Recursive call for children {child.name}")
-                grouping_nodes(child, max_tokens, past_summaries, parent_keys)
+                grouping_nodes(child, max_tokens)
         # otherwise, flush the grouped nodes and start again
         else:
-            # print("Flushing since sum_token it is greater than max_tokens")
-            # past_summaries = get_summary(grouped_nodes, parent_keys, past_summaries)
             node.grouped_children_keys.append(grouped_nodes)
             sum_token_children = child.token_length
             grouped_nodes = [child]
 
     if sum_token_children > 0:
-        # print("Flushing without reaching sum token limit")
-        # past_summaries = get_summary(grouped_nodes, parent_keys, past_summaries)
+        # Flushing without reaching sum token limit
         node.grouped_children_keys.append(grouped_nodes)
         sum_token_children = 0
         grouped_nodes = []
