@@ -4,9 +4,9 @@ A tree builder and a token-based node grouping algorithm for a JSON file, that c
 
 ## How does it work?
 
-A tree structure will first built from the input JSON file. Then, based on the user defined `max_tokens` variable, nodes are grouped, satisfying that the number of tokens in each group is always `<= max_tokens`. Algorithm details can be fround [here](./tree_splitter_llm/utils.py).
+A tree structure will be built first from the input JSON file. Then, based on the user defined `max_tokens` variable, nodes are grouped, satisfying that the number of tokens in each group is always `<= max_tokens`. Algorithm details can be fround [here](./tree_splitter_llm/utils.py).
 
-As an output, the build tree will have an attribute called `grouped_children_keys` indicating the children nodes that are groupped together.
+As an output, the built tree will have an attribute called `grouped_children_keys` indicating the children nodes that are grouped together.
 
 ## Run an example
 ### Env initialization
@@ -17,10 +17,10 @@ $ uv sync
 $ source .venv/bin/activate
 ```
 
-Additionally you may want to set up env variable `MODEL`, pointing to a model from openai. Then tiktoken library will know which tokenizer model is needed for the encoding. Defaults to `gpt-4`
+Additionally you may want to set up the env variable `MODEL`, pointing to a model from openai. Then tiktoken library will know which tokenizer model is needed for the encoding. Defaults to `gpt-4`.
 
-### And run main script
-Inside folder examples, you can find a [json example](./example/airline_routes_swagger.json).
+### And run the main script
+Inside the examples folder, you can find a [json example](./example/airline_routes_swagger.json).
 
 ```bash
 $ python main.py --filename [path_to_json_file] --token-number [max token number of the groups] --display-tree
