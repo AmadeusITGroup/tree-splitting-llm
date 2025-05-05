@@ -1,30 +1,19 @@
-from dotenv import load_dotenv
-import sys
 import anytree as at
-import os
-import tiktoken
 import json
+import tiktoken
 
-load_dotenv()
-
-MODEL = os.getenv("MODEL", "gpt-4")
-
-enc = tiktoken.encoding_for_model(MODEL)
-
-
-class MyBaseNodeClass(object):  # Just an example of a base class
+class CustomNodeClass(object):
     def __init__(
         self,
         token_length,
-        swagger_child,
+        child_key,
         grouped_children_keys=None,
-        original_swagger=None,
         parent_list=None,
     ):
         # Number of tokens in the node
         self.token_length = token_length
-        # Swagger of the node child (if any)
-        self.swagger_child = swagger_child
+        # Get the child key (if any)
+        self.child_key = child_key
 
         # List of keys of the children that are grouped
         if grouped_children_keys is None:
@@ -32,35 +21,27 @@ class MyBaseNodeClass(object):  # Just an example of a base class
         else:
             self.grouped_children_keys = grouped_children_keys
 
-        # List of original swagger of the node / group of nodes
-        if original_swagger is None:
-            self.original_swagger = []
-        else:
-            self.original_swagger = original_swagger
-
         if parent_list is None:
             self.parent_list = []
         else:
             self.parent_list = parent_list
 
 
-class LLmNodeClass(MyBaseNodeClass, at.AnyNode):  # Add Node feature
+class TreeAndCustomNodeClass(CustomNodeClass, at.AnyNode):
     def __init__(
         self,
         name,
         token_length,
-        swagger_child,
+        child_key,
         parent=None,
         children=None,
         grouped_children_keys=None,
-        original_swagger=None,
         parent_list=None,
     ):
-        super(LLmNodeClass, self).__init__(
+        super(TreeAndCustomNodeClass, self).__init__(
             token_length,
-            swagger_child,
+            child_key,
             grouped_children_keys,
-            original_swagger,
             parent_list,
         )
 
@@ -71,23 +52,18 @@ class LLmNodeClass(MyBaseNodeClass, at.AnyNode):  # Add Node feature
             self.children = children
 
 
-def get_token_length(input: dict) -> int:
+def get_token_length(input: dict, enc: tiktoken.Encoding) -> int:
     encoded_info = enc.encode(json.dumps(input))
     return len(encoded_info)
 
 
-def get_token_length_string(input: str) -> int:
-    encoded_info = enc.encode(input)
-    return len(encoded_info)
-
-
 # Aux function to get the nodes from the parent node
-def get_nodes_from_parent(parent_node, key, value, parent_list) -> None:
-    tokens = get_token_length(value)
-    new_parent = LLmNodeClass(
+def get_nodes_from_parent(parent_node: TreeAndCustomNodeClass, key: str, value: dict | str, encoder: tiktoken.Encoding, parent_list: list) -> None:
+    tokens = get_token_length(value, encoder)
+    new_parent = TreeAndCustomNodeClass(
         name=key,
         token_length=tokens,
-        swagger_child=value,
+        child_key=value,
         parent=parent_node,
         parent_list=parent_list,
     )
@@ -100,24 +76,26 @@ def get_nodes_from_parent(parent_node, key, value, parent_list) -> None:
                 current_parent = parent_list.copy()
                 current_parent.append(key)
 
-            get_nodes_from_parent(new_parent, k, v, current_parent)
+            get_nodes_from_parent(new_parent, k, v, encoder, current_parent)
     else:
         pass
 
 
 # Entry point to build the tree. It will create the root node and then call the recursive function to create the rest of the tree
-def build_tree(swagger: dict) -> LLmNodeClass:
-    root_node = LLmNodeClass(
-        name="root", token_length=get_token_length(swagger), swagger_child=swagger
+def build_tree(raw_json: dict, model: str) -> TreeAndCustomNodeClass:
+    encoder = tiktoken.encoding_for_model(model)
+
+    root_node = TreeAndCustomNodeClass(
+        name="root", token_length=get_token_length(raw_json, encoder), child_key=raw_json
     )
 
-    for k, v in swagger.items():
-        get_nodes_from_parent(root_node, k, v, None)
+    for k, v in raw_json.items():
+        get_nodes_from_parent(root_node, k, v, encoder, None)
 
     return root_node
 
 
-def grouping_nodes(node: LLmNodeClass, max_tokens: int) -> None:
+def grouping_nodes(node: TreeAndCustomNodeClass, max_tokens: int) -> None:
     """
     Logic to group child nodes.
 
@@ -157,9 +135,7 @@ def grouping_nodes(node: LLmNodeClass, max_tokens: int) -> None:
                 grouped_nodes = []
 
             if child.is_leaf:
-                sys.exit(
-                    f"Panic! Leaf node = '{child.name}' is exceeding max_tokens = {max_tokens}"
-                )
+                raise at.TreeError("Leaf node = '{child.name}' is exceeding max_tokens = {max_tokens}. Increase parameter 'token-number'")
             else:
                 grouping_nodes(child, max_tokens)
         # otherwise, flush the grouped nodes and start again
@@ -174,4 +150,3 @@ def grouping_nodes(node: LLmNodeClass, max_tokens: int) -> None:
         sum_token_children = 0
         grouped_nodes = []
 
-    return None

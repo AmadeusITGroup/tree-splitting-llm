@@ -5,6 +5,7 @@ from anytree.exporter import UniqueDotExporter
 import argparse
 
 default_swagger_filename = "./example/airline_routes_swagger.json"
+default_model = "gpt-4"
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -13,16 +14,16 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("-f", "--filename", default=default_swagger_filename)
+    parser.add_argument("-m", "--model", default=default_model)
     parser.add_argument("-t", "--token-number", type=int, default=0)
     parser.add_argument("--display-tree", action=argparse.BooleanOptionalAction)
 
     args = parser.parse_args()
-    print(args)
 
     with open(args.filename, "r") as f:
         swagger = json.load(f)
 
-    tree = ut.build_tree(swagger)
+    tree = ut.build_tree(swagger, args.model)
     total_tokens = tree.token_length
     print(f"Total number of tokens: {total_tokens}")
 
@@ -31,7 +32,7 @@ if __name__ == "__main__":
         token_limit = total_tokens // 3
     else:
         token_limit = args.token_number
-
+    print(f"Token limit set to {token_limit}")
     print(f"Token ratio chosen {token_limit / total_tokens:.2}")
 
     ut.grouping_nodes(tree, token_limit)

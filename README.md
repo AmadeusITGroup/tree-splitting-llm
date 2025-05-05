@@ -17,14 +17,12 @@ $ uv sync
 $ source .venv/bin/activate
 ```
 
-Additionally you may want to set up the env variable `MODEL`, pointing to a model from openai. Then tiktoken library will know which tokenizer model is needed for the encoding. Defaults to `gpt-4`.
-
 ### And run the main script
 Inside the examples folder, you can find a [json example](./example/airline_routes_swagger.json).
 
 ```bash
-$ python main.py --filename [path_to_json_file] --token-number [max token number of the groups] --display-tree
+$ python main.py --filename [path to json file] --model [llm model for the tokenizer] --token-number [max token number of the groups] --display-tree
 ```
-to build a tree from the given file and create node groups based on a defined token limit (it will default to 1/3 of the total file length in case the arg is not provided). Additionally if `--display-tree` flag is set, a plot with some tree nodes is saved in the project folder. It should look like this:
+This command wll build a tree from the given file and compute the tokens of each child. Additionally, it will create node groups based on a defined token limit (it will default to 1/3 of the total file length in case the arg is not provided). When `--display-tree` flag is set, a plot with some tree nodes is saved in the project folder. It should look like this:
 
 ![](./example/graph.png)

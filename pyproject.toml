@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "anytree>=2.13.0",
-    "python-dotenv>=1.1.0",
     "tiktoken>=0.9.0",
 ]
 
