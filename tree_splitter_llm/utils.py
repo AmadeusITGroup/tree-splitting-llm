@@ -2,6 +2,7 @@ import anytree as at
 import json
 import tiktoken
 
+
 class CustomNodeClass(object):
     def __init__(
         self,
@@ -58,7 +59,13 @@ def get_token_length(input: dict, enc: tiktoken.Encoding) -> int:
 
 
 # Aux function to get the nodes from the parent node
-def get_nodes_from_parent(parent_node: TreeAndCustomNodeClass, key: str, value: dict | str, encoder: tiktoken.Encoding, parent_list: list) -> None:
+def get_nodes_from_parent(
+    parent_node: TreeAndCustomNodeClass,
+    key: str,
+    value: dict | str,
+    encoder: tiktoken.Encoding,
+    parent_list: list,
+) -> None:
     tokens = get_token_length(value, encoder)
     new_parent = TreeAndCustomNodeClass(
         name=key,
@@ -86,7 +93,9 @@ def build_tree(raw_json: dict, model: str) -> TreeAndCustomNodeClass:
     encoder = tiktoken.encoding_for_model(model)
 
     root_node = TreeAndCustomNodeClass(
-        name="root", token_length=get_token_length(raw_json, encoder), child_key=raw_json
+        name="root",
+        token_length=get_token_length(raw_json, encoder),
+        child_key=raw_json,
     )
 
     for k, v in raw_json.items():
@@ -135,7 +144,9 @@ def grouping_nodes(node: TreeAndCustomNodeClass, max_tokens: int) -> None:
                 grouped_nodes = []
 
             if child.is_leaf:
-                raise at.TreeError("Leaf node = '{child.name}' is exceeding max_tokens = {max_tokens}. Increase parameter 'token-number'")
+                raise at.TreeError(
+                    "Leaf node = '{child.name}' is exceeding max_tokens = {max_tokens}. Increase parameter 'token-number'"
+                )
             else:
                 grouping_nodes(child, max_tokens)
         # otherwise, flush the grouped nodes and start again
@@ -149,4 +160,3 @@ def grouping_nodes(node: TreeAndCustomNodeClass, max_tokens: int) -> None:
         node.grouped_children_keys.append(grouped_nodes)
         sum_token_children = 0
         grouped_nodes = []
-
